@@ -5,7 +5,7 @@ import os
 app = FastAPI()
 
 @app.get("/")
-def read_root():
-    return {"status": "ok"}
+def health_check():
+    return {"status": "online"}
 
 
