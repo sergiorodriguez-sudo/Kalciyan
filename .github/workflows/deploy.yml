@@ -1,0 +1,93 @@
+name: Deploy SGI to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: kalciyan-790541980068
+  REGION: europe-west1
+  REPO_NAME: sgi-repo
+  BACKEND_IMAGE: europe-west1-docker.pkg.dev/kalciyan-790541980068/sgi-repo/sgi-backend
+  FRONTEND_IMAGE: europe-west1-docker.pkg.dev/kalciyan-790541980068/sgi-repo/sgi-frontend
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup Python for Backend Tests
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Dependencies & Test Backend
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          # mock google creds for test
+          echo "{}" > credentials.json
+          export GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+          # Run tests (skipping for now as we don't have extensive tests yet)
+          # pytest
+
+      # Authenticate to Google Cloud
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      # Build and Push Backend
+      - name: Build and Push Backend
+        run: |
+          docker build -t ${{ env.BACKEND_IMAGE }}:${{ github.sha }} -t ${{ env.BACKEND_IMAGE }}:latest ./backend
+          docker push ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          docker push ${{ env.BACKEND_IMAGE }}:latest
+
+      # Build and Push Frontend
+      - name: Build and Push Frontend
+        run: |
+          docker build -t ${{ env.FRONTEND_IMAGE }}:${{ github.sha }} -t ${{ env.FRONTEND_IMAGE }}:latest ./frontend
+          docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          docker push ${{ env.FRONTEND_IMAGE }}:latest
+
+  deploy:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Deploy Backend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: sgi-backend
+          image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            GOOGLE_APPLICATION_CREDENTIALS=/secrets/google/key.json
+          # Note: Real prod would mount secret volume for google credentials
+
+      - name: Deploy Frontend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: sgi-frontend
+          image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: |
+            NEXT_PUBLIC_API_URL=https://sgi-backend-790541980068.europe-west1.run.app
