@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import os
 from app.core.config import settings
 from app.db.session import engine, Base
 
@@ -38,4 +40,8 @@ def root():
 from app.api import endpoints, endpoints_training
 app.include_router(endpoints.router, prefix=settings.API_V1_STR)
 app.include_router(endpoints_training.router, prefix=settings.API_V1_STR)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
