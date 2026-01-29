@@ -15,11 +15,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
-COPY requirements.txt .
+# Note: adjusted path for root context
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
-COPY . .
+# Note: adjusted path for root context
+COPY backend/ .
 
 # Expose the port the app runs on
 EXPOSE 8000
