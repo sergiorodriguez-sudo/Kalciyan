@@ -5,7 +5,7 @@ import os
 app = FastAPI()
 
 @app.get("/")
-def root():
-    return {"message": "Hello form Cloud Run! Deployment Successful."}
+def read_root():
+    return {"status": "ok"}
 
 
